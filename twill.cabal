@@ -30,4 +30,8 @@ library
     time >= 1.4,
     attoparsec >= 0.10.2,
     aeson >= 0.6.0
-    
+  ghc-options: -O2 -Wall
+
+source-repository head
+  type:     git
+  location: git://github.com/reifyhealth/twill.git
