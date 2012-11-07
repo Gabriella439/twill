@@ -41,7 +41,7 @@ data Passport = Passport ByteString ByteString
 
 -- | Specialized to elide secret token information
 instance Show Passport where
-  showsPrec d (Passport sid _) rest =
+  showsPrec _ (Passport sid _) rest =
     "Passport " ++ show sid ++ "[elided]" ++ rest
 
 -- | Phone numbers are just strings containing only numbers with some
@@ -200,6 +200,7 @@ instance FromJSON APIKind where
       "outbound-api"   -> pure API
       "outbound-reply" -> pure Reply
       _                -> fail "parse Service.Twilio.Types.APIKind"
+  parseJSON _ = fail "parse Service.Twilio.Types.APIKind not an object"
 
 instance ToJSON APIKind where
   toJSON API   = qo "direction" "outbound-api"
@@ -221,6 +222,9 @@ instance FromJSON SendStatus where
                    "sent"    ->
                      Sent <$> fmap unTwilioTime (o .: "date_sent")
                           <*> fmap unCents (o .:  "price")
+                   _         ->
+                     fail "parse Service.Twilio.Types.SendStatus invalid status"
+  parseJSON _ = fail "parse Service.Twilio.Types.SendStatus not an object"
 
 instance ToJSON SendStatus where
   toJSON Queued  = qo "status" "queued"
@@ -237,7 +241,9 @@ instance FromJSON SMSKind where
       "inbound" -> pure Inbound
       "outbound-reply" -> rest
       "outbound-api"   -> rest
+      _                -> fail "parse Service.Twilio.Types.SMSKind invalid direction"
       where rest = Outbound <$> parseJSON obj <*> parseJSON obj
+  parseJSON _ = fail "parse Service.Twilio.Types.SMSKind not an object"
 
 instance ToJSON SMSKind where
   toJSON Inbound = qo "direction" "inbound"
@@ -267,6 +273,7 @@ instance FromJSON SMS where
                  distalNumber = distalNumber,
                  dateCreated = unTwilioTime dateCreated,
                  dateUpdated = unTwilioTime dateUpdated }
+  parseJSON _ = fail "parse Service.Twilio.Types.SMS not an object"
 
 instance ToJSON SMS where
   toJSON (SMS { .. }) =
