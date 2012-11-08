@@ -14,6 +14,8 @@ module Service.Twilio (
   SMSKind (..),
   Id (..), uri, fromSMSParams,
   SMS (..),
+  -- * Parsing
+  FromFormUrlencoded (..),
   -- * Request signing
   requestSignature
   ) where

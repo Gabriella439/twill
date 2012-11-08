@@ -123,20 +123,29 @@ uri typ (Id { .. }) = "/" <> fromString (show version)
                       <> "/" <> typ <> "/"
                       <> sid
 
+data SMSCore =
+  SMSCore { to   :: PhoneNumber,
+            from :: PhoneNumber,
+            body :: Text }
+  deriving (Show, Eq, Data, Typeable)
+
 -- | A 'TwilioMsg' is a record of an SMS sent or received by
 -- Twilio. These are returned from calls to the Twilio log API or as
 -- responses to new POSTs to the Twilio SMS API.
 data SMS =
   SMS { id           :: Id,
-
         kind         :: SMSKind,
-        body         :: Text,
-        localNumber  :: PhoneNumber,
-        distalNumber :: PhoneNumber,
-        
+        core         :: SMSCore,
         dateCreated  :: UTCTime,
         dateUpdated  :: UTCTime }
   deriving (Show, Eq, Data, Typeable)
+
+-- Parameter parsing
+
+-- | Indicates that an object can be parsed a Form-Urlencoded data
+-- source
+class FromFormUrlencoded a where
+  fromForm :: [(ByteString, ByteString)] -> Maybe a
 
 -- Aeson JSON Serialization helper types
 
@@ -201,12 +210,16 @@ instance ToJSON PhoneNumber where
          11 -> String (TE.decodeUtf8 $ "+" <> p)
          _  -> String (TE.decodeUtf8 p)
 
+versionFromString :: (Eq a, IsString a) => a -> Maybe APIVersion
+versionFromString "2010-04-01" = Just Api20100401
+versionFromString _            = Nothing
+
 instance FromJSON APIVersion where
-  parseJSON (String "2010-04-01") = pure Api20100401
+  parseJSON (String s) = justZ (versionFromString s)
   parseJSON _ = fail "parse Service.Twilio.Types.APIVersion"
 
 instance ToJSON APIVersion where
-  toJSON = String . fromString . show 
+  toJSON = String . fromString . show
 
 instance FromJSON Id where
   parseJSON (Object o) =
@@ -224,6 +237,17 @@ instance ToJSON Id where
              "sid"         .= sid,
              "uri"         .= url ]
     where url = uri "SMS/Messages" id <> ".json"
+
+instance FromFormUrlencoded Id where
+  fromForm ps = do accountSid <- lookup "AccountSid" ps
+                   sid        <- lookup "SmsSid" ps <|> lookup "CallSid" ps
+                   -- This always fails through to the default
+                   -- instance, but it's nice to have theoretically
+                   version    <- (lookup "ApiVersion" ps >>= versionFromString)
+                                 <|> Just def
+                   return Id { version = version,
+                               account = accountSid,
+                               sid     = sid }
 
 instance FromJSON APIKind where
   parseJSON (Object o) = do
@@ -281,28 +305,36 @@ instance ToJSON SMSKind where
   toJSON Inbound = qo "direction" "inbound"
   toJSON (Outbound api status) = concatObjects [ toJSON api, toJSON status ]
 
+instance FromJSON SMSCore where
+  parseJSON obj@(Object o) = do
+    to          <- o .: "to"
+    from        <- o .: "from"
+    body        <- o .: "body"
+    return SMSCore { to = to, from = from, body = body }
 
--- Actual, exportable Aeson instances
-        
+instance ToJSON SMSCore where
+  toJSON (SMSCore { ..}) =
+    object [ "to" .= to, "from" .= from, "body" .= body ]
+
+instance FromFormUrlencoded SMSCore where
+  fromForm ps = do to   <- lookup "To" ps
+                   from <- lookup "From" ps
+                   body <- lookup "Body" ps
+                   return SMSCore { to   = fromString $ BC.unpack to,
+                                    from = fromString $ BC.unpack from,
+                                    body = TE.decodeUtf8 body }
+
 instance FromJSON SMS where
   parseJSON obj@(Object o) = do
     id          <- parseJSON obj
     kind        <- parseJSON obj
-    body        <- o .: "body"
+    core        <- parseJSON obj
     dateCreated <- o .: "date_created"
     dateUpdated <- o .: "date_updated"
-    to          <- o .: "to"
-    from        <- o .: "from"
-    let (localNumber, distalNumber) =
-          case kind of
-            Inbound      -> (to, from)
-            Outbound _ _ -> (from, to)
 
     return SMS { id   = id,
                  kind = kind,
-                 body = body,
-                 localNumber = localNumber,
-                 distalNumber = distalNumber,
+                 core = core,
                  dateCreated = unTwilioTime dateCreated,
                  dateUpdated = unTwilioTime dateUpdated }
   parseJSON _ = fail "parse Service.Twilio.Types.SMS not an object"
@@ -311,18 +343,10 @@ instance ToJSON SMS where
   toJSON (SMS { .. }) =
     concatObjects [ toJSON id,
                     toJSON kind,
-                    qo "body" body,
+                    toJSON core,
                     object ["date_created" .= TwilioTime dateCreated],
-                    object ["date_updated" .= TwilioTime dateUpdated],
-                    toFrom ]
-    where
-      toFrom :: Value
-      toFrom =
-        case kind of
-          Inbound -> object [ "to"   .= localNumber,
-                              "from" .= distalNumber ]
-          _       -> object [ "from" .= localNumber,
-                              "to"   .= distalNumber ]
+                    object ["date_updated" .= TwilioTime dateUpdated]
+                  ]
 
 -- Arbitrary Instances
 
@@ -364,36 +388,32 @@ instance Arbitrary Id where
                 sid     = sid,
                 version = Api20100401 }
 
--- | Creates an 'Id' based on POST parameters from an SMS request
-fromSMSParams :: [(ByteString, ByteString)] -> Maybe Id
-fromSMSParams ps = do 
-  accountSid <- lookup "AccountSid" ps
-  sid        <- lookup "SmsId" ps
-  return Id { version = def,
-              account = accountSid,
-              sid     = sid }
+-- | The random body generation should create semi-meaningful body
+-- text obeying the size limit.
+instance Arbitrary SMSCore where
+  arbitrary =
+    do body <- fmap T.pack arbitraryBody
+       to   <- arbitrary
+       from <- arbitrary
+       return SMSCore { to = to, from = from, body = body }
+    where
+      arbitraryBody = do n <- choose (20, 160)
+                         vectorOf n $ frequency [(1, pure ' '),
+                                                 (3, choose ('a', 'z'))]
+
 
 -- | Creates an arbitrary SMS guaranteeing that the 'dateCreated' and
--- 'dateUpdated' and 'dateSent' fields are sensible. The random body
--- generation should create semi-meaningful body text obeying the size
--- limit.
+-- 'dateUpdated' and 'dateSent' fields are sensible.
 instance Arbitrary SMS where
   arbitrary = do
     dateCreated  <- arbitrary
     dateUpdated  <- arbitrary `suchThat` (> dateCreated)
     kind         <- fmap (mkValidDate dateUpdated) arbitrary
-    body         <- fmap T.pack arbitraryBody
+    core         <- arbitrary
     id           <- arbitrary
-    localNumber  <- arbitrary
-    distalNumber <- arbitrary
-    return SMS { kind = kind, body = body, id = id,
-                 localNumber = localNumber,
-                 distalNumber = distalNumber,
+    return SMS { kind = kind, core = core, id = id,
                  dateCreated = dateCreated,
                  dateUpdated = dateUpdated }
     where mkValidDate d (Outbound a (Sent _ p)) =
             Outbound a (Sent d p)
           mkValidDate _ k = k
-          arbitraryBody = do n <- choose (20, 160)
-                             vectorOf n $ frequency [(1, pure ' '),
-                                                     (3, choose ('a', 'z'))]
