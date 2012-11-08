@@ -158,7 +158,8 @@ newtype USD = Cents { unCents :: Int }
 
 instance FromJSON USD where
   parseJSON (String s) =
-    fmap (Cents . negate . round . (*100)) $ rightZ $ A.parseOnly (A.signed A.double) s
+    fmap (Cents . negate . round . (*100))
+    $ rightZ $ A.parseOnly (A.signed A.double) s
   parseJSON _ = fail "parse Service.Twilio.Types.USD"
 
 instance ToJSON USD where
