@@ -12,7 +12,8 @@ module Service.Twilio (
   SendStatus (..),
   APIKind (..),
   SMSKind (..),
-  Id (..), uri, fromSMSParams,
+  Id (..), uri,
+  SMSCore (..),
   SMS (..),
   -- * Parsing
   FromFormUrlencoded (..),
@@ -50,4 +51,3 @@ requestSignature (Passport _ token) url qs headers =
   encode $ url <> qs <> canonize headers
   where encode = B64.encode . hmac hash 64 token
         canonize = mconcat . map (uncurry mappend) . sortBy (comparing fst)
-

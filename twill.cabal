@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                twill
-version:             0.1.0.2
+version:             0.1.0.3
 synopsis:            Twilio API interaction
 description:         A little Twilio library
 license:             MIT

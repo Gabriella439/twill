@@ -306,11 +306,12 @@ instance ToJSON SMSKind where
   toJSON (Outbound api status) = concatObjects [ toJSON api, toJSON status ]
 
 instance FromJSON SMSCore where
-  parseJSON obj@(Object o) = do
+  parseJSON (Object o) = do
     to          <- o .: "to"
     from        <- o .: "from"
     body        <- o .: "body"
     return SMSCore { to = to, from = from, body = body }
+  parseJSON _ = fail "parse Service.Twilio.Types.SMSCore"
 
 instance ToJSON SMSCore where
   toJSON (SMSCore { ..}) =
