@@ -15,7 +15,8 @@ module Service.Twilio (
   Id (..), uri,
   SMS (..),
   -- * Request signing
-  requestSignature
+  requestSignature,
+  requestSignature'
   ) where
 
 import Prelude hiding (id)
