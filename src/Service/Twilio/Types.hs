@@ -12,6 +12,7 @@ import Data.Data
 import Data.Char
 import Data.String
 import Data.Monoid
+import Data.Default
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.Attoparsec.Text as A
@@ -79,22 +80,45 @@ data SendStatus =
   Failed 
   deriving (Show, Eq, Ord, Data, Typeable)
 
+-- | Assumes the default is a just sent message, thus it's queued
+instance Default SendStatus where
+  def = Queued
+
 -- | The type of API used to send an outgoing message
 data APIKind = API | Reply deriving (Show, Eq, Data, Typeable)
+
+-- | Assumes the default is API usage
+instance Default APIKind where
+  def = API
 
 -- | The type of SMS, be it incoming or outgoing
 data SMSKind = Outbound APIKind SendStatus | Inbound
              deriving (Show, Eq, Data, Typeable)
 
+-- | Assumes we're sending a default outbound message
+instance Default SMSKind where
+  def = Outbound def def
+
+-- | A fixed enum representation of the API version since
+-- 'ByteString's are far too permissive.
+data APIVersion = Api20100401 deriving (Eq, Ord, Data, Typeable)
+
+instance Show APIVersion where
+  show Api20100401 = "2010-04-01"
+
+-- | Defaults to the most recent API, "2010-04-01"
+instance Default APIVersion where
+  def = Api20100401
+
 -- | A unique identifier for a message based on the account SID, API
 -- version, and message SID. This can be used to construct the
 -- canonical Twilio API URI.
-data Id = Id { account :: ByteString, version :: ByteString, sid :: ByteString }
+data Id = Id { account :: ByteString, version :: APIVersion, sid :: ByteString }
         deriving (Show, Eq, Data, Typeable)
 
 -- | Create a URI derived from an 'Id'
 uri :: ByteString -> Id -> ByteString
-uri typ (Id { .. }) = "/" <> version
+uri typ (Id { .. }) = "/" <> fromString (show version)
                       <> "/Accounts/" <> account
                       <> "/" <> typ <> "/"
                       <> sid
@@ -176,6 +200,13 @@ instance ToJSON PhoneNumber where
          10 -> String (TE.decodeUtf8 $ "+1" <> p)
          11 -> String (TE.decodeUtf8 $ "+" <> p)
          _  -> String (TE.decodeUtf8 p)
+
+instance FromJSON APIVersion where
+  parseJSON (String "2010-04-01") = pure Api20100401
+  parseJSON _ = fail "parse Service.Twilio.Types.APIVersion"
+
+instance ToJSON APIVersion where
+  toJSON = String . fromString . show 
 
 instance FromJSON Id where
   parseJSON (Object o) =
@@ -331,7 +362,7 @@ instance Arbitrary Id where
     sid  <- fmap ("SM" <>) (genB16 16)
     return Id { account = acct,
                 sid     = sid,
-                version = "2010-04-01" }
+                version = Api20100401 }
 
 -- | Creates an arbitrary SMS guaranteeing that the 'dateCreated' and
 -- 'dateUpdated' and 'dateSent' fields are sensible. The random body
