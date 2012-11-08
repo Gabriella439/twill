@@ -158,12 +158,12 @@ newtype USD = Cents { unCents :: Int }
 
 instance FromJSON USD where
   parseJSON (String s) =
-    fmap (Cents . negate) $ rightZ $ A.parseOnly (A.signed A.decimal) s
+    fmap (Cents . negate . round . (*100)) $ rightZ $ A.parseOnly (A.signed A.double) s
   parseJSON _ = fail "parse Service.Twilio.Types.USD"
 
 instance ToJSON USD where
   toJSON (Cents p) =
-    String $ T.pack $ printf "%.2f\n" (negate $ fromIntegral p :: Float)
+    String $ T.pack $ printf "%.2f\n" (negate $ (/100) $ fromIntegral p :: Float)
 
 instance FromJSON PhoneNumber where
   parseJSON (String s) = pure . fromString . T.unpack $ s
