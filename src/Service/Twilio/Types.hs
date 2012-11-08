@@ -364,6 +364,15 @@ instance Arbitrary Id where
                 sid     = sid,
                 version = Api20100401 }
 
+-- | Creates an 'Id' based on POST parameters from an SMS request
+fromSMSParams :: [(ByteString, ByteString)] -> Maybe Id
+fromSMSParams ps = do 
+  accountSid <- lookup "AccountSid" ps
+  sid        <- lookup "SmsId" ps
+  return Id { version = def,
+              account = accountSid,
+              sid     = sid }
+
 -- | Creates an arbitrary SMS guaranteeing that the 'dateCreated' and
 -- 'dateUpdated' and 'dateSent' fields are sensible. The random body
 -- generation should create semi-meaningful body text obeying the size

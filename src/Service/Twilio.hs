@@ -12,11 +12,10 @@ module Service.Twilio (
   SendStatus (..),
   APIKind (..),
   SMSKind (..),
-  Id (..), uri,
+  Id (..), uri, fromSMSParams,
   SMS (..),
   -- * Request signing
-  requestSignature,
-  requestSignature'
+  requestSignature
   ) where
 
 import Prelude hiding (id)
@@ -35,25 +34,17 @@ import Crypto.MAC.HMAC (hmac)
 -- | Given a Passport, a target URL, the raw query string, and a set
 -- of body parameters, this function computes the canonical request
 -- signature Twilio uses to authenticate itself.
-requestSignature :: Passport
-                    -> ByteString -- ^ The full URL
-                    -> ByteString -- ^ The raw query string including the "?"
-                    -> [(ByteString, ByteString)] -- ^ Post parameters in Body
-                    -> ByteString
-requestSignature = requestSignature' False False
-
--- | A more flexible form of 'requestSignature' intended to be used
--- with the API inconsistencies for HTTP call requests and HTTPS call
+--
+-- A more flexible form of 'requestSignature' could be used with the
+-- API inconsistencies for HTTP call requests and HTTPS call
 -- requests. See the bottom of <http://www.twilio.com/docs/security>
 -- for more details.
-requestSignature' :: Passport
-                     -> Bool -- ^ Should the username/password be dropped?
-                     -> Bool -- ^ Should the port be dropped?
+requestSignature :: Passport
                      -> ByteString -- ^ The full URL
                      -> ByteString -- ^ The raw query string including the "?"
                      -> [(ByteString, ByteString)] -- ^ Post parameters in Body
                      -> ByteString
-requestSignature' (Passport _ token) url qs headers =
+requestSignature (Passport _ token) url qs headers =
   encode $ url <> qs <> canonize headers
   where encode = B64.encode . hmac hash 64 token
         canonize = mconcat . map (uncurry mappend) . sortBy (comparing fst)
