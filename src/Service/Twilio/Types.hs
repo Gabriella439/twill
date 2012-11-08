@@ -51,7 +51,7 @@ instance Show Passport where
 -- (country code "+1"). The input data is preserved---a number entered
 -- without a country code is stored, printed, and returned without a
 -- country code---but 'Eq' is overrided with some assumptions.
-newtype PhoneNumber = PhoneNumber ByteString
+newtype PhoneNumber = PhoneNumber { getPhoneNumber :: ByteString }
                     deriving (Show, Data, Typeable)
 
 -- | TODO Make this do more than lift the equality judgement
@@ -154,10 +154,14 @@ twilioUTCFormat :: String
 twilioUTCFormat = "%a, %d %b %Y %T %z"
 
 -- | This has a VERY interesting general type signature, I wonder if
--- it exists somewhere more clearly?
+-- it exists somewhere more clearly? 
 --
--- > (Monad m, Monad w) => (a -> m b) -> w a -> m (w a)
+-- > (Monad m, Monad w) => (a -> m b) -> w a -> m (w b)
 --
+-- Yes! It does! It's Maybe's 'Traversable' instance!
+--
+-- > (Tranversable t, Applicative f) =>
+-- > (a -> f b) -> t a -> f (t b)
 maybeParse :: (Value -> Parser a) -> Maybe Value -> Parser (Maybe a)
 maybeParse p = maybe (return Nothing) (fmap Just . p)
 
