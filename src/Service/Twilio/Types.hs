@@ -208,11 +208,7 @@ instance FromJSON PhoneNumber where
   parseJSON _ = fail "parse Service.Twilio.Types.PhoneNumber"
 
 instance ToJSON PhoneNumber where
-  toJSON (PhoneNumber p) =
-    case B.length p of
-         10 -> String (TE.decodeUtf8 $ "+1" <> p)
-         11 -> String (TE.decodeUtf8 $ "+" <> p)
-         _  -> String (TE.decodeUtf8 p)
+  toJSON (PhoneNumber p) = String (TE.decodeUtf8 p)
 
 versionFromString :: (Eq a, IsString a) => a -> Maybe APIVersion
 versionFromString "2010-04-01" = Just Api20100401
